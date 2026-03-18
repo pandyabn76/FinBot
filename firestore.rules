@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: sources
+    // Fields:
+    //   - name: string (required)
+    //   - url: string (required)
+    //   - category: string (required, enum)
+    //   - tags: list (optional)
+    //
+    // Collection: articles
+    // Fields:
+    //   - title: string (required)
+    //   - link: string (required)
+    //   - content: string (required)
+    //   - pubDate: timestamp (required)
+    //   - category: string (required)
+    //   - sourceName: string (required)
+    //   - sourceId: string (required)
+    //
+    // Collection: summaries
+    // Fields:
+    //   - date: timestamp (required)
+    //   - content: string (required)
+    //   - category: string (required)
+    //
+    // Collection: watchlist
+    // Fields:
+    //   - symbol: string (required)
+    //   - category: string (required)
+    //   - uid: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "pandyabn76@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidSource(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.url is string && data.url.size() > 0 &&
+             data.category in ["stocks", "currency", "commodity", "indices", "crypto"];
+    }
+
+    function isValidWatchlist(data) {
+      return data.symbol is string && data.symbol.size() > 0 && data.symbol.size() < 20 &&
+             data.category is string &&
+             data.uid == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    // Sources: Admins can manage, authenticated users can read
+    match /sources/{sourceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && isValidSource(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Articles: Admins (or the bot) can write, authenticated users can read
+    match /articles/{articleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Summaries: Admins can write, authenticated users can read
+    match /summaries/{summaryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Watchlist: Users can manage their own watchlist
+    match /watchlist/{itemId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (isValidWatchlist(request.resource.data) || isAdmin());
+      allow update: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin()) && (isValidWatchlist(request.resource.data) || isAdmin());
+      allow delete: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+    }
+
+    // Thematic Reports: Users can manage their own reports
+    match /thematic_reports/{reportId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+  }
+}

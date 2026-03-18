@@ -1,0 +1,5 @@
+{
+  "name": "FinMarket Research Bot",
+  "description": "Automated financial market analysis bot that aggregates news from RSS feeds and websites to provide daily summaries for stocks, currency, commodities, indices, and crypto.",
+  "requestFramePermissions": []
+}
